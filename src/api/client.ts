@@ -31,6 +31,53 @@ export class ApiError extends Error {
 
 import { startApiLoading, stopApiLoading } from './loading.js';
 
+const SERVER_STARTING =
+  'API server is starting up. Wait a moment, then try login again.';
+const SERVER_UNREACHABLE =
+  'Cannot reach the API server. On Render free tier it may be waking up — wait 30–60 seconds and try again.';
+
+async function wakeApiServer() {
+  try {
+    await fetch(`${API_URL}/health`, { method: 'GET' });
+  } catch {
+    // ignore — retry will surface a clearer error
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+}
+
+async function request<T>(path: string, options: RequestInit, retryOnColdStart: boolean): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, options);
+  } catch {
+    if (retryOnColdStart) {
+      await wakeApiServer();
+      return request(path, options, false);
+    }
+    throw new ApiError(SERVER_UNREACHABLE, 0);
+  }
+
+  if ((response.status === 502 || response.status === 503) && retryOnColdStart) {
+    await wakeApiServer();
+    return request(path, options, false);
+  }
+
+  if (response.status === 502 || response.status === 503) {
+    throw new ApiError(SERVER_STARTING, response.status);
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({ error: 'Request failed' }));
+    throw new ApiError(payload.error ?? 'Request failed', response.status);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return response.json() as Promise<T>;
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   startApiLoading();
   try {
@@ -47,21 +94,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers,
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new ApiError(payload.error ?? 'Request failed', response.status);
-    }
-
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    return response.json() as Promise<T>;
+    return request<T>(path, { ...options, headers }, true);
   } finally {
     stopApiLoading();
   }

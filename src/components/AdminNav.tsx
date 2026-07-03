@@ -19,11 +19,11 @@ interface AdminNavProps {
 export default function AdminNav({ onNavigate, className = '' }: AdminNavProps) {
   return (
     <nav className={`space-y-0.5 ${className}`}>
-      {ADMIN_NAV.map(({ to, label, icon: Icon, end }) => (
+      {ADMIN_NAV.map((item) => (
         <NavLink
-          key={to}
-          to={to}
-          end={end}
+          key={item.to}
+          to={item.to}
+          end={'end' in item ? item.end : undefined}
           onClick={onNavigate}
           className={({ isActive }) =>
             `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
@@ -33,8 +33,8 @@ export default function AdminNav({ onNavigate, className = '' }: AdminNavProps) 
             }`
           }
         >
-          <Icon className="h-4 w-4 shrink-0" />
-          {label}
+          <item.icon className="h-4 w-4 shrink-0" />
+          {item.label}
         </NavLink>
       ))}
     </nav>

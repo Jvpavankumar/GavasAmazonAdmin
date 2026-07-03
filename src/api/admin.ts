@@ -1,6 +1,14 @@
 import { api } from './client';
 import type { Product } from '../types';
 
+export interface StockProductSummary {
+  id: string;
+  name: string;
+  category: string;
+  brand: string;
+  stockQuantity: number;
+}
+
 export interface DashboardData {
   stats: {
     products: number;
@@ -26,6 +34,8 @@ export interface DashboardData {
     email: string;
     itemCount: number;
   }[];
+  outOfStockProducts?: StockProductSummary[];
+  inStockProductsList?: StockProductSummary[];
 }
 
 export interface AdminUser {
@@ -68,10 +78,11 @@ export function fetchDashboard() {
   return api<DashboardData>('/admin/dashboard');
 }
 
-export function fetchAdminProducts(params?: { q?: string; category?: string }) {
+export function fetchAdminProducts(params?: { q?: string; category?: string; stock?: 'in' | 'out' | 'low' }) {
   const search = new URLSearchParams();
   if (params?.q) search.set('q', params.q);
   if (params?.category) search.set('category', params.category);
+  if (params?.stock) search.set('stock', params.stock);
   const qs = search.toString();
   return api<Product[]>(`/admin/products${qs ? `?${qs}` : ''}`);
 }

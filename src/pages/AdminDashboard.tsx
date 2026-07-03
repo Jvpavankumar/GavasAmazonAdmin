@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, ShoppingBag, Users, Tags, IndianRupee, Clock, CheckCircle, XCircle } from 'lucide-react';
 import Loader from '../components/Loader';
-import { fetchDashboard, fetchAdminOrders, type DashboardData } from '../api/admin';
+import { fetchDashboard, fetchAdminOrders, fetchAdminProducts, type DashboardData, type StockProductSummary } from '../api/admin';
 
 function formatInr(value: number | undefined) {
   return (value ?? 0).toLocaleString('en-IN');
@@ -25,31 +25,52 @@ function countOrdersByStatus(orders: { status: string }[], status: string) {
 async function loadDashboardData(): Promise<DashboardData> {
   const dashboard = await fetchDashboard();
 
-  if (typeof dashboard.stats.deliveredOrders === 'number') {
-    return dashboard;
+  let result = dashboard;
+
+  if (typeof dashboard.stats.deliveredOrders !== 'number') {
+    const orders = await fetchAdminOrders();
+    const deliveredTotal = sumOrderTotals(orders, 'Delivered');
+    const pendingTotal = sumOrderTotals(orders, 'Processing');
+    const cancelledTotal = sumOrderTotals(orders, 'Cancelled');
+
+    result = {
+      ...dashboard,
+      stats: {
+        ...dashboard.stats,
+        revenue: deliveredTotal,
+        pendingRevenue: pendingTotal,
+        deliveredOrders: countOrdersByStatus(orders, 'Delivered'),
+        pendingOrders: countOrdersByStatus(orders, 'Processing'),
+        cancelledOrders: countOrdersByStatus(orders, 'Cancelled'),
+      },
+      ordersByStatus: [
+        { status: 'Processing', count: countOrdersByStatus(orders, 'Processing'), amount: pendingTotal },
+        { status: 'Delivered', count: countOrdersByStatus(orders, 'Delivered'), amount: deliveredTotal },
+        { status: 'Cancelled', count: countOrdersByStatus(orders, 'Cancelled'), amount: cancelledTotal },
+      ],
+    };
   }
 
-  const orders = await fetchAdminOrders();
-  const deliveredTotal = sumOrderTotals(orders, 'Delivered');
-  const pendingTotal = sumOrderTotals(orders, 'Processing');
-  const cancelledTotal = sumOrderTotals(orders, 'Cancelled');
+  if (!result.outOfStockProducts?.length && !result.inStockProductsList?.length) {
+    const [outProducts, inProducts] = await Promise.all([
+      fetchAdminProducts({ stock: 'out' }),
+      fetchAdminProducts({ stock: 'in' }),
+    ]);
+    const toSummary = (p: { id: string; name: string; category: string; brand: string; stockQuantity: number }): StockProductSummary => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      brand: p.brand,
+      stockQuantity: p.stockQuantity,
+    });
+    result = {
+      ...result,
+      outOfStockProducts: outProducts.map(toSummary),
+      inStockProductsList: inProducts.map(toSummary),
+    };
+  }
 
-  return {
-    ...dashboard,
-    stats: {
-      ...dashboard.stats,
-      revenue: deliveredTotal,
-      pendingRevenue: pendingTotal,
-      deliveredOrders: countOrdersByStatus(orders, 'Delivered'),
-      pendingOrders: countOrdersByStatus(orders, 'Processing'),
-      cancelledOrders: countOrdersByStatus(orders, 'Cancelled'),
-    },
-    ordersByStatus: [
-      { status: 'Processing', count: countOrdersByStatus(orders, 'Processing'), amount: pendingTotal },
-      { status: 'Delivered', count: countOrdersByStatus(orders, 'Delivered'), amount: deliveredTotal },
-      { status: 'Cancelled', count: countOrdersByStatus(orders, 'Cancelled'), amount: cancelledTotal },
-    ],
-  };
+  return result;
 }
 
 function statusAmount(
@@ -83,13 +104,16 @@ export default function AdminDashboard() {
   }
 
   const stats = [
-    { label: 'Products', value: data.stats.products, icon: Package, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Units in stock', value: data.stats.totalUnits, icon: Package, color: 'text-teal-600 bg-teal-50' },
-    { label: 'Orders', value: data.stats.orders, icon: ShoppingBag, color: 'text-emerald-600 bg-emerald-50' },
-    { label: 'Users', value: data.stats.users, icon: Users, color: 'text-violet-600 bg-violet-50' },
-    { label: 'Categories', value: data.stats.categories, icon: Tags, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Out of stock', value: data.stats.outOfStockProducts, icon: Tags, color: 'text-red-600 bg-red-50' },
+    { label: 'Products', value: data.stats.products, icon: Package, color: 'text-blue-600 bg-blue-50', link: '/products' },
+    { label: 'In stock', value: data.stats.inStockProducts, icon: CheckCircle, color: 'text-teal-600 bg-teal-50', link: '/products?stock=in' },
+    { label: 'Out of stock', value: data.stats.outOfStockProducts, icon: XCircle, color: 'text-red-600 bg-red-50', link: '/products?stock=out' },
+    { label: 'Orders', value: data.stats.orders, icon: ShoppingBag, color: 'text-emerald-600 bg-emerald-50', link: '/orders' },
+    { label: 'Users', value: data.stats.users, icon: Users, color: 'text-violet-600 bg-violet-50', link: '/users' },
+    { label: 'Categories', value: data.stats.categories, icon: Tags, color: 'text-amber-600 bg-amber-50', link: '/categories' },
   ];
+
+  const outOfStock = data.outOfStockProducts ?? [];
+  const inStock = data.inStockProductsList ?? [];
 
   return (
     <div className="space-y-6">
@@ -99,8 +123,8 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {stats.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="card p-5">
+        {stats.map(({ label, value, icon: Icon, color, link }) => (
+          <Link key={label} to={link} className="card p-5 transition hover:shadow-md">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">{label}</p>
@@ -110,7 +134,7 @@ export default function AdminDashboard() {
                 <Icon className="h-5 w-5" />
               </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -203,6 +227,63 @@ export default function AdminDashboard() {
             ))}
             {data.recentOrders.length === 0 && (
               <li className="py-4 text-sm text-gray-400">No recent orders</li>
+            )}
+          </ul>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="card p-5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-semibold text-gray-900">Out of stock</h2>
+            <Link to="/products?stock=out" className="text-sm font-medium text-lavender-700 hover:underline">
+              View all ({data.stats.outOfStockProducts ?? outOfStock.length})
+            </Link>
+          </div>
+          <ul className="mt-4 max-h-72 space-y-2 overflow-y-auto">
+            {outOfStock.length === 0 ? (
+              <li className="text-sm text-gray-400">All products are in stock</li>
+            ) : (
+              outOfStock.map((p) => (
+                <li key={p.id} className="flex items-start justify-between gap-3 rounded-lg border border-red-100 bg-red-50/50 px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 font-medium text-gray-900">{p.name}</p>
+                    <p className="text-xs text-gray-500">{p.brand} · {p.category}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                    0 left
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+
+        <div className="card p-5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-semibold text-gray-900">In stock</h2>
+            <Link to="/products?stock=in" className="text-sm font-medium text-lavender-700 hover:underline">
+              View all ({data.stats.inStockProducts ?? inStock.length})
+            </Link>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">Sorted by lowest stock first</p>
+          <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+            {inStock.length === 0 ? (
+              <li className="text-sm text-gray-400">No products in stock</li>
+            ) : (
+              inStock.map((p) => (
+                <li key={p.id} className="flex items-start justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50/40 px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 font-medium text-gray-900">{p.name}</p>
+                    <p className="text-xs text-gray-500">{p.brand} · {p.category}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    p.stockQuantity <= 10 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    {p.stockQuantity} left
+                  </span>
+                </li>
+              ))
             )}
           </ul>
         </div>

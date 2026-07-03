@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Search, Package, Boxes, AlertTriangle } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Plus, Pencil, Trash2, Search, Package, AlertTriangle, CheckCircle } from 'lucide-react';
 import type { Product } from '../types';
 import {
   fetchAdminProducts, createProduct, updateProduct, deleteProduct, fetchAdminCategories,
@@ -15,6 +16,8 @@ const emptyProduct = (): Partial<Product> => ({
 });
 
 export default function AdminProducts() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const stockFilter = (searchParams.get('stock') as 'in' | 'out' | 'low' | null) ?? 'all';
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -92,20 +95,52 @@ export default function AdminProducts() {
     await load();
   };
 
-  const filtered = products.filter((p) =>
-    !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.id.includes(search),
-  );
+  const filtered = products.filter((p) => {
+    const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.id.includes(search);
+    const matchesStock =
+      stockFilter === 'all'
+        ? true
+        : stockFilter === 'in'
+          ? p.stockQuantity > 0
+          : stockFilter === 'out'
+            ? p.stockQuantity <= 0
+            : p.stockQuantity > 0 && p.stockQuantity <= 10;
+    return matchesSearch && matchesStock;
+  });
 
-  const totalUnits = products.reduce((sum, p) => sum + p.stockQuantity, 0);
+  const sorted = [...filtered].sort((a, b) => {
+    if (stockFilter === 'in' || stockFilter === 'low') {
+      return a.stockQuantity - b.stockQuantity || a.name.localeCompare(b.name);
+    }
+    return a.name.localeCompare(b.name);
+  });
+
   const inStockCount = products.filter((p) => p.stockQuantity > 0).length;
-  const outOfStockCount = products.length - inStockCount;
+  const outOfStockCount = products.filter((p) => p.stockQuantity <= 0).length;
+  const lowStockCount = products.filter((p) => p.stockQuantity > 0 && p.stockQuantity <= 10).length;
   const salePrice = calcSalePrice(mrp, discountPercent);
 
+  const setStockFilter = (value: 'all' | 'in' | 'out' | 'low') => {
+    if (value === 'all') {
+      searchParams.delete('stock');
+      setSearchParams(searchParams);
+    } else {
+      setSearchParams({ stock: value });
+    }
+  };
+
+  const stockTabs = [
+    { id: 'all' as const, label: 'All products', count: products.length },
+    { id: 'in' as const, label: 'In stock', count: inStockCount },
+    { id: 'out' as const, label: 'Out of stock', count: outOfStockCount },
+    { id: 'low' as const, label: 'Low stock (≤10)', count: lowStockCount },
+  ];
+
   const stats = [
-    { label: 'Total products', value: products.length, icon: Package, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Units in stock', value: totalUnits, icon: Boxes, color: 'text-emerald-600 bg-emerald-50' },
-    { label: 'In stock', value: inStockCount, icon: Boxes, color: 'text-violet-600 bg-violet-50' },
-    { label: 'Out of stock', value: outOfStockCount, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
+    { label: 'Showing', value: filtered.length, icon: Package, color: 'text-blue-600 bg-blue-50', filter: 'all' as const },
+    { label: 'In stock', value: inStockCount, icon: CheckCircle, color: 'text-teal-600 bg-teal-50', filter: 'in' as const },
+    { label: 'Out of stock', value: outOfStockCount, icon: AlertTriangle, color: 'text-red-600 bg-red-50', filter: 'out' as const },
+    { label: 'Low stock', value: lowStockCount, icon: AlertTriangle, color: 'text-amber-600 bg-amber-50', filter: 'low' as const },
   ];
 
   return (
@@ -114,7 +149,7 @@ export default function AdminProducts() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <p className="text-sm text-gray-500">
-            {products.length} products · {totalUnits.toLocaleString('en-IN')} units left in inventory
+            {filtered.length} product{filtered.length !== 1 ? 's' : ''} in this view
           </p>
         </div>
         <button type="button" onClick={openCreate} className="btn-primary flex items-center gap-2 px-4 py-2 text-sm">
@@ -123,8 +158,15 @@ export default function AdminProducts() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="card p-4">
+        {stats.map(({ label, value, icon: Icon, color, filter }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => setStockFilter(filter)}
+            className={`card p-4 text-left transition hover:shadow-md ${
+              stockFilter === filter ? 'ring-2 ring-lavender-400' : ''
+            }`}
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-gray-500">{label}</p>
@@ -134,7 +176,24 @@ export default function AdminProducts() {
                 <Icon className="h-4 w-4" />
               </div>
             </div>
-          </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {stockTabs.map(({ id, label, count }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setStockFilter(id)}
+            className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+              stockFilter === id
+                ? 'bg-lavender-700 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {label} ({count})
+          </button>
         ))}
       </div>
 
@@ -168,7 +227,14 @@ export default function AdminProducts() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((p) => {
+                {sorted.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                      No products match this filter
+                    </td>
+                  </tr>
+                )}
+                {sorted.map((p) => {
                   const discount = getDiscountPercent(p.price, p.originalPrice);
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
