@@ -8,11 +8,15 @@ export interface DashboardData {
     users: number;
     categories: number;
     revenue: number;
+    pendingRevenue: number;
+    deliveredOrders: number;
+    pendingOrders: number;
+    cancelledOrders: number;
     totalUnits: number;
     inStockProducts: number;
     outOfStockProducts: number;
   };
-  ordersByStatus: { status: string; count: number }[];
+  ordersByStatus: { status: string; count: number; amount?: number }[];
   recentOrders: {
     id: string;
     date: string;
@@ -44,8 +48,10 @@ export interface AdminOrder {
   shipping: number;
   total: number;
   paymentMethod: string;
+  deliveryConfirmed: boolean;
+  orderOtp?: string;
   customer: { name: string; email: string };
-  address: { line: string; city: string; zip: string };
+  address: { line: string; street: string; phone: string; city: string; zip: string };
   items: { name: string; quantity: number; price: number }[];
 }
 
@@ -82,13 +88,37 @@ export function deleteProduct(id: string) {
   return api<{ deleted: boolean }>(`/admin/products/${id}`, { method: 'DELETE' });
 }
 
-export function fetchAdminOrders(status?: string) {
-  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
-  return api<AdminOrder[]>(`/admin/orders${qs}`);
+export function fetchAdminOrders(params?: {
+  status?: string;
+  q?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  const search = new URLSearchParams();
+  if (params?.status) search.set('status', params.status);
+  if (params?.q) search.set('q', params.q);
+  if (params?.dateFrom) search.set('dateFrom', params.dateFrom);
+  if (params?.dateTo) search.set('dateTo', params.dateTo);
+  const qs = search.toString();
+  return api<AdminOrder[]>(`/admin/orders${qs ? `?${qs}` : ''}`);
 }
 
 export function updateOrderStatus(id: string, status: string) {
   return api(`/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+export function verifyOrderOtp(id: string, otp: string) {
+  return api<{ id: string; status: string; deliveryConfirmed: boolean }>(
+    `/admin/orders/${id}/verify-otp`,
+    { method: 'POST', body: JSON.stringify({ otp }) },
+  );
+}
+
+export function resendOrderOtp(id: string, email?: string) {
+  return api<{ otp: string; recipientEmail: string; emailSent: boolean }>(
+    `/admin/orders/${id}/resend-otp`,
+    { method: 'POST', body: JSON.stringify(email ? { email } : {}) },
+  );
 }
 
 export function fetchAdminUsers(q?: string) {
