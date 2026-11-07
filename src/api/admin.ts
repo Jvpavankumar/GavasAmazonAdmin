@@ -59,10 +59,9 @@ export interface AdminOrder {
   total: number;
   paymentMethod: string;
   deliveryConfirmed: boolean;
-  orderOtp?: string;
   customer: { name: string; email: string };
   address: { line: string; street: string; phone: string; city: string; zip: string };
-  items: { name: string; quantity: number; price: number }[];
+  items: { name: string; quantity: number; price: number; brand?: string; category?: string }[];
 }
 
 export interface AdminCategory {
@@ -126,7 +125,7 @@ export function verifyOrderOtp(id: string, otp: string) {
 }
 
 export function resendOrderOtp(id: string, email?: string) {
-  return api<{ otp: string; recipientEmail: string; emailSent: boolean }>(
+  return api<{ recipientEmail: string; emailSent: boolean }>(
     `/admin/orders/${id}/resend-otp`,
     { method: 'POST', body: JSON.stringify(email ? { email } : {}) },
   );

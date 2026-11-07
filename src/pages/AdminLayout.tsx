@@ -73,7 +73,7 @@ export default function AdminLayout() {
               <Menu className="h-5 w-5" />
             </button>
             <span className="truncate text-sm font-semibold text-lavender-800 sm:text-base">
-              GavasAmazon Admin
+              GavasMart Admin
             </span>
           </div>
 

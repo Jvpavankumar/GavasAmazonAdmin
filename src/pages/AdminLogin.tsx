@@ -6,7 +6,7 @@ const STORE_URL = import.meta.env.VITE_STORE_URL ?? 'http://localhost:5173';
 
 export default function AdminLogin() {
   const { signInWithAdmin } = useAuth();
-  const [email, setEmail] = useState('admin@gavasamazon.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function AdminLogin() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-lavender-100">
             <Shield className="h-6 w-6 text-lavender-700" />
           </div>
-          <h1 className="mt-4 text-xl font-bold text-gray-900">GavasAmazon Admin</h1>
+          <h1 className="mt-4 text-xl font-bold text-gray-900">GavasMart Admin</h1>
           <p className="mt-2 text-sm text-gray-500">Sign in with your admin credentials</p>
         </div>
 
@@ -47,7 +47,7 @@ export default function AdminLogin() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-lg border border-gray-200 py-2.5 pr-3 pl-10 text-sm outline-none focus:border-lavender-400 focus:ring-2 focus:ring-lavender-100"
-                placeholder="admin@gavasamazon.com"
+                placeholder="Admin email"
               />
             </div>
           </div>
@@ -78,10 +78,6 @@ export default function AdminLogin() {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
-
-        <p className="mt-4 text-center text-xs text-gray-400">
-          Default: admin@gavasamazon.com / admin123
-        </p>
 
         <a href={STORE_URL} className="mt-4 block text-center text-sm text-lavender-700 hover:underline">
           ← Back to store

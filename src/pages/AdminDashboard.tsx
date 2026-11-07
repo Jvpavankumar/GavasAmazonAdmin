@@ -8,18 +8,14 @@ function formatInr(value: number | undefined) {
   return (value ?? 0).toLocaleString('en-IN');
 }
 
-function normalizeOrderStatus(status: string) {
-  return status === 'Shipped' ? 'Processing' : status;
-}
-
 function sumOrderTotals(orders: { status: string; total: number }[], status: string) {
   return orders
-    .filter((o) => normalizeOrderStatus(o.status) === status)
+    .filter((o) => o.status === status)
     .reduce((sum, o) => sum + o.total, 0);
 }
 
 function countOrdersByStatus(orders: { status: string }[], status: string) {
-  return orders.filter((o) => normalizeOrderStatus(o.status) === status).length;
+  return orders.filter((o) => o.status === status).length;
 }
 
 async function loadDashboardData(): Promise<DashboardData> {
@@ -30,7 +26,8 @@ async function loadDashboardData(): Promise<DashboardData> {
   if (typeof dashboard.stats.deliveredOrders !== 'number') {
     const orders = await fetchAdminOrders();
     const deliveredTotal = sumOrderTotals(orders, 'Delivered');
-    const pendingTotal = sumOrderTotals(orders, 'Processing');
+    const processingTotal = sumOrderTotals(orders, 'Processing');
+    const shippedTotal = sumOrderTotals(orders, 'Shipped');
     const cancelledTotal = sumOrderTotals(orders, 'Cancelled');
 
     result = {
@@ -38,13 +35,14 @@ async function loadDashboardData(): Promise<DashboardData> {
       stats: {
         ...dashboard.stats,
         revenue: deliveredTotal,
-        pendingRevenue: pendingTotal,
+        pendingRevenue: processingTotal + shippedTotal,
         deliveredOrders: countOrdersByStatus(orders, 'Delivered'),
-        pendingOrders: countOrdersByStatus(orders, 'Processing'),
+        pendingOrders: countOrdersByStatus(orders, 'Processing') + countOrdersByStatus(orders, 'Shipped'),
         cancelledOrders: countOrdersByStatus(orders, 'Cancelled'),
       },
       ordersByStatus: [
-        { status: 'Processing', count: countOrdersByStatus(orders, 'Processing'), amount: pendingTotal },
+        { status: 'Processing', count: countOrdersByStatus(orders, 'Processing'), amount: processingTotal },
+        { status: 'Shipped', count: countOrdersByStatus(orders, 'Shipped'), amount: shippedTotal },
         { status: 'Delivered', count: countOrdersByStatus(orders, 'Delivered'), amount: deliveredTotal },
         { status: 'Cancelled', count: countOrdersByStatus(orders, 'Cancelled'), amount: cancelledTotal },
       ],
@@ -184,9 +182,12 @@ export default function AdminDashboard() {
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
                   : status === 'Cancelled'
                     ? 'bg-red-50 text-red-800 border-red-100'
-                    : 'bg-amber-50 text-amber-800 border-amber-100';
+                    : status === 'Shipped'
+                      ? 'bg-blue-50 text-blue-800 border-blue-100'
+                      : 'bg-amber-50 text-amber-800 border-amber-100';
               const Icon = status === 'Delivered' ? CheckCircle : status === 'Cancelled' ? XCircle : Clock;
-              const label = status === 'Processing' ? 'To deliver' : status;
+              const label =
+                status === 'Processing' ? 'To deliver' : status === 'Shipped' ? 'Shipped' : status;
 
               return (
                 <li
