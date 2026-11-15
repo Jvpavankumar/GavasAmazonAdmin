@@ -16,6 +16,8 @@ export interface DashboardData {
     users: number;
     categories: number;
     revenue: number;
+    paidAmount?: number;
+    paidOrders?: number;
     pendingRevenue: number;
     deliveredOrders: number;
     pendingOrders: number;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ShoppingBag, Users, Tags, IndianRupee, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Package, ShoppingBag, Users, Tags, IndianRupee, Clock, CheckCircle, XCircle, CreditCard } from 'lucide-react';
 import Loader from '../components/Loader';
 import { fetchDashboard, fetchAdminOrders, fetchAdminProducts, type DashboardData, type StockProductSummary } from '../api/admin';
 
@@ -136,7 +136,20 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Link to="/orders" className="card border-lavender-200 bg-lavender-50/40 p-5 transition hover:shadow-md">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-lavender-700" />
+            <p className="text-sm text-gray-500">Total amount paid (Online)</p>
+          </div>
+          <p className="mt-2 text-3xl font-bold text-gray-900">
+            ₹{formatInr(data.stats.paidAmount)}
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            {data.stats.paidOrders ?? 0} paid order{(data.stats.paidOrders ?? 0) === 1 ? '' : 's'} via Razorpay · refunds excluded
+          </p>
+        </Link>
+
         <div className="card p-5">
           <div className="flex items-center gap-2">
             <IndianRupee className="h-5 w-5 text-emerald-600" />
