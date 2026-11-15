@@ -97,6 +97,11 @@ export function fetchAdminProducts(params?: { q?: string; category?: string; sto
   return api<Product[]>(`/admin/products${qs ? `?${qs}` : ''}`);
 }
 
+/** Full product including its gallery images (the admin list omits them to stay small). */
+export function fetchProductDetail(id: string) {
+  return api<Product>(`/products/${encodeURIComponent(id)}`);
+}
+
 export function createProduct(data: Partial<Product>) {
   return api<Product>('/admin/products', { method: 'POST', body: JSON.stringify(data) });
 }

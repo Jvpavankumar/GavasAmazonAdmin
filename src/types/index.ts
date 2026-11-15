@@ -9,6 +9,8 @@ export interface Product {
   rating: number;
   reviewCount: number;
   image: string;
+  /** Extra gallery images; only returned when a single product is fetched. */
+  images?: string[];
   stockQuantity: number;
   inStock: boolean;
   features: string[];

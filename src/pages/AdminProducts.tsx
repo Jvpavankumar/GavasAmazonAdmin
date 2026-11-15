@@ -3,16 +3,17 @@ import { useSearchParams } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Search, Package, AlertTriangle, CheckCircle } from 'lucide-react';
 import type { Product } from '../types';
 import {
-  fetchAdminProducts, createProduct, updateProduct, deleteProduct, fetchAdminCategories,
+  fetchAdminProducts, createProduct, updateProduct, deleteProduct, fetchAdminCategories, fetchProductDetail,
 } from '../api/admin';
 import { formatPrice, getDiscountPercent, calcSalePrice } from '../utils/formatPrice';
 import Loader from '../components/Loader';
 import ImageUrlField from '../components/ImageUrlField';
+import GalleryImagesField from '../components/GalleryImagesField';
 import AdminImageThumb from '../components/AdminImageThumb';
 
 const emptyProduct = (): Partial<Product> => ({
   name: '', description: '', price: 0, originalPrice: undefined, category: '', brand: '',
-  rating: 4, reviewCount: 0, image: '', stockQuantity: 0, inStock: false, features: [],
+  rating: 4, reviewCount: 0, image: '', images: [], stockQuantity: 0, inStock: false, features: [],
 });
 
 export default function AdminProducts() {
@@ -28,6 +29,7 @@ export default function AdminProducts() {
   const [discountPercent, setDiscountPercent] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [galleryLoading, setGalleryLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -53,12 +55,36 @@ export default function AdminProducts() {
     setModal('create');
   };
 
-  const openEdit = (p: Product) => {
-    setForm({ ...p });
+  const openEdit = async (p: Product) => {
+    // The list doesn't include gallery images; leave `images` unset until they load
+    // so saving early can't wipe them.
+    const { images: _omit, ...rest } = p;
+    void _omit;
+    setForm(rest);
     setMrp(p.originalPrice ?? p.price);
     setDiscountPercent(getDiscountPercent(p.price, p.originalPrice) ?? 0);
     setEditingId(p.id);
     setModal('edit');
+    setGalleryLoading(true);
+    try {
+      const full = await fetchProductDetail(p.id);
+      setForm((prev) => (prev.id === p.id ? { ...prev, images: full.images ?? [] } : prev));
+    } catch {
+      // Gallery stays unset, so saving won't touch existing preview images.
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
+
+  const makeGalleryImageMain = (index: number) => {
+    setForm((prev) => {
+      const gallery = [...(prev.images ?? [])];
+      const chosen = gallery[index];
+      if (!chosen) return prev;
+      if (prev.image) gallery[index] = prev.image;
+      else gallery.splice(index, 1);
+      return { ...prev, image: chosen, images: gallery };
+    });
   };
 
   const handleSave = async () => {
@@ -388,9 +414,19 @@ export default function AdminProducts() {
               </div>
 
               <ImageUrlField
+                label="Main image"
                 value={form.image ?? ''}
                 onChange={(image) => setForm({ ...form, image })}
               />
+              {galleryLoading ? (
+                <p className="text-xs text-gray-400">Loading preview images…</p>
+              ) : (
+                <GalleryImagesField
+                  images={form.images ?? []}
+                  onChange={(images) => setForm((prev) => ({ ...prev, images }))}
+                  onMakeMain={makeGalleryImageMain}
+                />
+              )}
               <div>
                 <label className="text-xs font-medium text-gray-600">Category</label>
                 <select
