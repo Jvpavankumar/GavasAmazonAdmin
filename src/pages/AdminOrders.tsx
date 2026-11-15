@@ -17,6 +17,17 @@ import { exportOrdersToExcel } from '../utils/exportOrdersExcel';
 const STATUSES = ['Processing', 'Shipped', 'Delivered', 'Cancelled'] as const;
 const STATUS_OPTIONS = ['Processing', 'Shipped', 'Delivered', 'Cancelled'] as const;
 
+function paymentBadge(order: AdminOrder) {
+  const isCod = /cash on delivery|cod/i.test(order.paymentMethod);
+  const status = order.payment?.status;
+  if (isCod) return { label: 'COD', className: 'bg-gray-100 text-gray-700' };
+  if (status === 'Paid') return { label: 'Paid', className: 'bg-emerald-100 text-emerald-800' };
+  if (status === 'Refunded') return { label: 'Refunded', className: 'bg-red-100 text-red-800' };
+  if (status === 'Partially Refunded') return { label: 'Part refunded', className: 'bg-orange-100 text-orange-800' };
+  if (status === 'Refund Pending') return { label: 'Refund pending', className: 'bg-orange-100 text-orange-800' };
+  return { label: status ?? 'Unpaid', className: 'bg-amber-100 text-amber-800' };
+}
+
 function statusBadgeClass(status: string, deliveryConfirmed: boolean) {
   if (status === 'Delivered' || deliveryConfirmed) {
     return 'bg-emerald-100 text-emerald-800';
@@ -188,16 +199,29 @@ function OrderDetailPanel({
   return (
     <div className="space-y-4 border-t border-gray-100 bg-gray-50/60 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1 text-sm text-gray-600">
-          <p><span className="font-medium text-gray-800">Date:</span> {new Date(order.date).toLocaleString()}</p>
+        <div className="grid flex-1 gap-x-6 gap-y-1 text-sm text-gray-600 sm:grid-cols-2">
+          <p><span className="font-medium text-gray-800">Date:</span> {new Date(order.date).toLocaleString('en-IN')}</p>
+          <p><span className="font-medium text-gray-800">Customer:</span> {order.customer.name}</p>
           <p><span className="font-medium text-gray-800">Email:</span> {order.customer.email}</p>
-          <p>
+          <p><span className="font-medium text-gray-800">Mobile:</span> {order.address.phone ? `+91 ${order.address.phone}` : '—'}</p>
+          <p className="sm:col-span-2">
             <span className="font-medium text-gray-800">Address:</span>{' '}
             {[order.address.street, order.address.line, order.address.city, order.address.zip]
               .filter(Boolean)
               .join(', ')}
           </p>
-          <p><span className="font-medium text-gray-800">Payment:</span> {order.paymentMethod}</p>
+          <p className="sm:col-span-2"><span className="font-medium text-gray-800">Payment method:</span> {order.paymentMethod}</p>
+          <p>
+            <span className="font-medium text-gray-800">Payment status:</span>{' '}
+            <span className={`ml-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${paymentBadge(order).className}`}>
+              {paymentBadge(order).label}
+            </span>
+          </p>
+          {order.payment && (
+            <p>
+              <span className="font-medium text-gray-800">Payment ref:</span> {order.payment.id} · ₹{order.payment.amount.toLocaleString('en-IN')}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -238,9 +262,21 @@ function OrderDetailPanel({
 
       <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
         {order.items.map((item, i) => (
-          <li key={i} className="flex justify-between px-3 py-2.5 text-sm text-gray-600">
-            <span>{item.name} × {item.quantity}</span>
-            <span>₹{Math.round(item.price * item.quantity).toLocaleString('en-IN')}</span>
+          <li key={i} className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600">
+            {item.image ? (
+              <img src={item.image} alt="" className="h-12 w-12 shrink-0 rounded-md border border-gray-100 object-cover" loading="lazy" />
+            ) : (
+              <div className="h-12 w-12 shrink-0 rounded-md bg-gray-100" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-gray-900">{item.name}</p>
+              <p className="text-xs text-gray-500">
+                {[item.brand, item.category].filter(Boolean).join(' · ')}
+                {item.productId ? ` · ${item.productId}` : ''}
+              </p>
+              <p className="text-xs text-gray-500">₹{item.price.toLocaleString('en-IN')} × {item.quantity}</p>
+            </div>
+            <span className="shrink-0 font-semibold text-gray-900">₹{Math.round(item.price * item.quantity).toLocaleString('en-IN')}</span>
           </li>
         ))}
       </ul>
@@ -406,11 +442,12 @@ export default function AdminOrders() {
           <div className="p-6 text-sm text-gray-500">No orders found</div>
         ) : (
           <>
-            <div className="hidden border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.1fr_1.2fr_1fr_0.9fr_0.9fr_0.5fr_1fr] md:gap-3">
+            <div className="hidden border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1fr_1.2fr_1fr_0.9fr_0.8fr_0.9fr_0.5fr_0.8fr] md:gap-3">
               <span>Order ID</span>
               <span>Name</span>
               <span>Mobile</span>
               <span>Amount</span>
+              <span>Payment</span>
               <span>Status</span>
               <span className="text-center">Bill</span>
               <span className="text-right">Action</span>
@@ -423,7 +460,7 @@ export default function AdminOrders() {
 
                 return (
                   <div key={order.id}>
-                    <div className="grid gap-3 px-4 py-4 md:grid-cols-[1.1fr_1.2fr_1fr_0.9fr_0.9fr_0.5fr_1fr] md:items-center md:gap-3">
+                    <div className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_1.2fr_1fr_0.9fr_0.8fr_0.9fr_0.5fr_0.8fr] md:items-center md:gap-3">
                       <div>
                         <p className="text-xs text-gray-500 md:hidden">Order ID</p>
                         <p className="font-semibold text-gray-900">{order.id}</p>
@@ -443,6 +480,12 @@ export default function AdminOrders() {
                         <p className="font-semibold text-gray-900">
                           ₹{order.total.toLocaleString('en-IN')}
                         </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 md:hidden">Payment</p>
+                        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${paymentBadge(order).className}`}>
+                          {paymentBadge(order).label}
+                        </span>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 md:hidden">Status</p>

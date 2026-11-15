@@ -63,7 +63,16 @@ export interface AdminOrder {
   deliveryConfirmed: boolean;
   customer: { name: string; email: string };
   address: { line: string; street: string; phone: string; city: string; zip: string };
-  items: { name: string; quantity: number; price: number; brand?: string; category?: string }[];
+  items: {
+    name: string;
+    quantity: number;
+    price: number;
+    brand?: string;
+    category?: string;
+    image?: string;
+    productId?: string;
+  }[];
+  payment?: { id: string; amount: number; status: string; method: string } | null;
 }
 
 export interface AdminCategory {

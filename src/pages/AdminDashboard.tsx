@@ -229,13 +229,17 @@ export default function AdminDashboard() {
           <ul className="mt-4 divide-y divide-gray-100">
             {data.recentOrders.map((order) => (
               <li key={order.id} className="flex items-center justify-between py-3 text-sm">
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium text-gray-900">{order.id}</p>
-                  <p className="text-gray-500">{order.customer}</p>
+                  <p className="text-gray-700">{order.customer}</p>
+                  <p className="truncate text-xs text-gray-400">
+                    {order.email} · {order.itemCount} item{order.itemCount === 1 ? '' : 's'}
+                  </p>
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 text-right">
                   <p className="font-semibold">₹{order.total.toLocaleString('en-IN')}</p>
                   <p className="text-xs text-gray-400">{order.status}</p>
+                  <p className="text-xs text-gray-400">{new Date(order.date).toLocaleDateString('en-IN')}</p>
                 </div>
               </li>
             ))}
