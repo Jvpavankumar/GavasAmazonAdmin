@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Search, Package, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, AlertTriangle, CheckCircle, Zap } from 'lucide-react';
 import type { Product } from '../types';
 import {
   fetchAdminProducts, createProduct, updateProduct, deleteProduct, fetchAdminCategories, fetchProductDetail,
@@ -13,12 +13,12 @@ import AdminImageThumb from '../components/AdminImageThumb';
 
 const emptyProduct = (): Partial<Product> => ({
   name: '', description: '', price: 0, originalPrice: undefined, category: '', brand: '',
-  rating: 4, reviewCount: 0, image: '', images: [], stockQuantity: 0, inStock: false, features: [],
+  rating: 4, reviewCount: 0, image: '', images: [], stockQuantity: 0, inStock: false, features: [], dealOfDay: false,
 });
 
 export default function AdminProducts() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const stockFilter = (searchParams.get('stock') as 'in' | 'out' | 'low' | null) ?? 'all';
+  const stockFilter = (searchParams.get('stock') as 'in' | 'out' | 'low' | 'deal' | null) ?? 'all';
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -30,6 +30,7 @@ export default function AdminProducts() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [galleryLoading, setGalleryLoading] = useState(false);
+  const [togglingDeal, setTogglingDeal] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -130,7 +131,9 @@ export default function AdminProducts() {
           ? p.stockQuantity > 0
           : stockFilter === 'out'
             ? p.stockQuantity <= 0
-            : p.stockQuantity > 0 && p.stockQuantity <= 10;
+            : stockFilter === 'deal'
+              ? Boolean(p.dealOfDay)
+              : p.stockQuantity > 0 && p.stockQuantity <= 10;
     return matchesSearch && matchesStock;
   });
 
@@ -146,7 +149,22 @@ export default function AdminProducts() {
   const lowStockCount = products.filter((p) => p.stockQuantity > 0 && p.stockQuantity <= 10).length;
   const salePrice = calcSalePrice(mrp, discountPercent);
 
-  const setStockFilter = (value: 'all' | 'in' | 'out' | 'low') => {
+  const dealCount = products.filter((p) => p.dealOfDay).length;
+
+  // One-click on/off for the storefront's "Deal of the day" carousel.
+  const toggleDeal = async (p: Product) => {
+    setTogglingDeal(p.id);
+    try {
+      const updated = await updateProduct(p.id, { dealOfDay: !p.dealOfDay });
+      setProducts((list) => list.map((x) => (x.id === p.id ? { ...x, dealOfDay: updated.dealOfDay } : x)));
+    } catch {
+      alert('Could not update Deal of the day');
+    } finally {
+      setTogglingDeal(null);
+    }
+  };
+
+  const setStockFilter = (value: 'all' | 'in' | 'out' | 'low' | 'deal') => {
     if (value === 'all') {
       searchParams.delete('stock');
       setSearchParams(searchParams);
@@ -160,6 +178,7 @@ export default function AdminProducts() {
     { id: 'in' as const, label: 'In stock', count: inStockCount },
     { id: 'out' as const, label: 'Out of stock', count: outOfStockCount },
     { id: 'low' as const, label: 'Low stock (≤10)', count: lowStockCount },
+    { id: 'deal' as const, label: '⚡ Deal of the day', count: dealCount },
   ];
 
   const stats = [
@@ -249,13 +268,14 @@ export default function AdminProducts() {
                   <th className="px-4 py-3">Price</th>
                   <th className="px-4 py-3">Discount</th>
                   <th className="px-4 py-3">Stock left</th>
+                  <th className="px-4 py-3" title="Show in the storefront's Deal of the day carousel">Deal of day</th>
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sorted.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
                       No products match this filter
                     </td>
                   </tr>
@@ -299,6 +319,26 @@ export default function AdminProducts() {
                         }`}>
                           {p.stockQuantity > 0 ? `${p.stockQuantity} left` : 'Out of stock'}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleDeal(p)}
+                          disabled={togglingDeal === p.id}
+                          aria-pressed={Boolean(p.dealOfDay)}
+                          title={p.dealOfDay ? 'Remove from Deal of the day' : 'Add to Deal of the day'}
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+                            p.dealOfDay
+                              ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-300 hover:bg-amber-200'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          <Zap className={`h-3.5 w-3.5 ${p.dealOfDay ? 'fill-amber-400 text-amber-500' : ''}`} />
+                          {p.dealOfDay ? 'On' : 'Off'}
+                        </button>
+                        {p.dealOfDay && p.stockQuantity <= 0 && (
+                          <p className="mt-1 text-[11px] text-red-500">Hidden: out of stock</p>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
@@ -392,6 +432,24 @@ export default function AdminProducts() {
                   )}
                 </div>
               )}
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.dealOfDay)}
+                  onChange={(e) => setForm({ ...form, dealOfDay: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 accent-amber-500"
+                />
+                <span>
+                  <span className="flex items-center gap-1 text-sm font-medium text-gray-800">
+                    <Zap className="h-3.5 w-3.5 fill-amber-400 text-amber-500" /> Show in Deal of the day
+                  </span>
+                  <span className="block text-xs text-gray-500">
+                    Appears in the home page Deal of the day carousel while it&apos;s in stock. Set a discount (MRP
+                    above the sale price) so shoppers see the savings.
+                  </span>
+                </span>
+              </label>
 
               <div>
                 <label className="text-xs font-medium text-gray-600">Stock quantity</label>

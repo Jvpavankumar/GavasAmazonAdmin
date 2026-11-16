@@ -15,6 +15,8 @@ export interface Product {
   inStock: boolean;
   features: string[];
   badge?: string;
+  /** Shown in the storefront's "Deal of the day" carousel. */
+  dealOfDay?: boolean;
 }
 
 export interface CartItem {
