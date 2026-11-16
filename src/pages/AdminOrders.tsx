@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   CheckCircle,
@@ -11,7 +12,6 @@ import {
 import { fetchAdminOrders, resendOrderOtp, updateOrderStatus, verifyOrderOtp, type AdminOrder } from '../api/admin';
 import { ApiError } from '../api/client';
 import Loader from '../components/Loader';
-import OrderBill from '../components/OrderBill';
 import { exportOrdersToExcel } from '../utils/exportOrdersExcel';
 
 const STATUSES = ['Processing', 'Shipped', 'Delivered', 'Cancelled'] as const;
@@ -300,7 +300,7 @@ export default function AdminOrders() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(true);
-  const [billOrder, setBillOrder] = useState<AdminOrder | null>(null);
+  const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
@@ -499,7 +499,7 @@ export default function AdminOrders() {
                         <p className="text-xs text-gray-500 md:hidden">Bill</p>
                         <button
                           type="button"
-                          onClick={() => setBillOrder(order)}
+                          onClick={() => navigate(`/orders/${order.id}/bill`, { state: { order } })}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-lavender-200 bg-lavender-50 text-lavender-800 transition hover:bg-lavender-100"
                           title="View bill"
                           aria-label="View bill"
@@ -541,9 +541,6 @@ export default function AdminOrders() {
         )}
       </div>
 
-      {billOrder && (
-        <OrderBill order={billOrder} onClose={() => setBillOrder(null)} />
-      )}
     </div>
   );
 }

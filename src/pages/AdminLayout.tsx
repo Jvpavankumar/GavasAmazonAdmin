@@ -61,7 +61,7 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-sm">
+      <header className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-sm print:hidden">
         <div className="page-container flex h-14 items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -134,8 +134,8 @@ export default function AdminLayout() {
         </div>
       )}
 
-      <div className="page-container flex gap-4 py-4 sm:gap-6 sm:py-6 lg:gap-6">
-        <aside className="hidden w-52 shrink-0 lg:block">
+      <div className="page-container flex gap-4 py-4 sm:gap-6 sm:py-6 lg:gap-6 print:block print:p-0">
+        <aside className="hidden w-52 shrink-0 lg:block print:hidden">
           <nav className="card sticky top-[4.5rem] p-2">
             <AdminNav />
           </nav>

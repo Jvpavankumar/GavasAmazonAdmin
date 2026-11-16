@@ -1,120 +1,31 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Search, Package, AlertTriangle, CheckCircle, Zap } from 'lucide-react';
 import type { Product } from '../types';
-import {
-  fetchAdminProducts, createProduct, updateProduct, deleteProduct, fetchAdminCategories, fetchProductDetail,
-} from '../api/admin';
-import { formatPrice, getDiscountPercent, calcSalePrice } from '../utils/formatPrice';
+import { fetchAdminProducts, updateProduct, deleteProduct } from '../api/admin';
+import { formatPrice, getDiscountPercent } from '../utils/formatPrice';
 import Loader from '../components/Loader';
-import ImageUrlField from '../components/ImageUrlField';
-import GalleryImagesField from '../components/GalleryImagesField';
 import AdminImageThumb from '../components/AdminImageThumb';
-
-const emptyProduct = (): Partial<Product> => ({
-  name: '', description: '', price: 0, originalPrice: undefined, category: '', brand: '',
-  rating: 4, reviewCount: 0, image: '', images: [], stockQuantity: 0, inStock: false, features: [], dealOfDay: false,
-});
 
 export default function AdminProducts() {
   const [searchParams, setSearchParams] = useSearchParams();
   const stockFilter = (searchParams.get('stock') as 'in' | 'out' | 'low' | 'deal' | null) ?? 'all';
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState<'create' | 'edit' | null>(null);
-  const [form, setForm] = useState<Partial<Product>>(emptyProduct());
-  const [mrp, setMrp] = useState(0);
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [galleryLoading, setGalleryLoading] = useState(false);
+  const navigate = useNavigate();
   const [togglingDeal, setTogglingDeal] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [prods, cats] = await Promise.all([
-        fetchAdminProducts({ q: search || undefined }),
-        fetchAdminCategories(),
-      ]);
-      setProducts(prods);
-      setCategories(cats.map((c) => c.name));
+      setProducts(await fetchAdminProducts({ q: search || undefined }));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { load(); }, []);
-
-  const openCreate = () => {
-    setForm(emptyProduct());
-    setMrp(0);
-    setDiscountPercent(0);
-    setEditingId(null);
-    setModal('create');
-  };
-
-  const openEdit = async (p: Product) => {
-    // The list doesn't include gallery images; leave `images` unset until they load
-    // so saving early can't wipe them.
-    const { images: _omit, ...rest } = p;
-    void _omit;
-    setForm(rest);
-    setMrp(p.originalPrice ?? p.price);
-    setDiscountPercent(getDiscountPercent(p.price, p.originalPrice) ?? 0);
-    setEditingId(p.id);
-    setModal('edit');
-    setGalleryLoading(true);
-    try {
-      const full = await fetchProductDetail(p.id);
-      setForm((prev) => (prev.id === p.id ? { ...prev, images: full.images ?? [] } : prev));
-    } catch {
-      // Gallery stays unset, so saving won't touch existing preview images.
-    } finally {
-      setGalleryLoading(false);
-    }
-  };
-
-  const makeGalleryImageMain = (index: number) => {
-    setForm((prev) => {
-      const gallery = [...(prev.images ?? [])];
-      const chosen = gallery[index];
-      if (!chosen) return prev;
-      if (prev.image) gallery[index] = prev.image;
-      else gallery.splice(index, 1);
-      return { ...prev, image: chosen, images: gallery };
-    });
-  };
-
-  const handleSave = async () => {
-    if (mrp <= 0) {
-      alert('Please enter a valid price');
-      return;
-    }
-
-    const salePrice = calcSalePrice(mrp, discountPercent);
-    setSaving(true);
-    try {
-      const payload = {
-        ...form,
-        price: salePrice,
-        originalPrice: discountPercent > 0 && mrp > salePrice ? mrp : null,
-      };
-      if (modal === 'create') {
-        await createProduct(payload);
-      } else if (editingId) {
-        await updateProduct(editingId, payload);
-      }
-      setModal(null);
-      await load();
-    } catch {
-      alert('Failed to save product');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this product?')) return;
@@ -147,7 +58,6 @@ export default function AdminProducts() {
   const inStockCount = products.filter((p) => p.stockQuantity > 0).length;
   const outOfStockCount = products.filter((p) => p.stockQuantity <= 0).length;
   const lowStockCount = products.filter((p) => p.stockQuantity > 0 && p.stockQuantity <= 10).length;
-  const salePrice = calcSalePrice(mrp, discountPercent);
 
   const dealCount = products.filter((p) => p.dealOfDay).length;
 
@@ -197,9 +107,9 @@ export default function AdminProducts() {
             {filtered.length} product{filtered.length !== 1 ? 's' : ''} in this view
           </p>
         </div>
-        <button type="button" onClick={openCreate} className="btn-primary flex items-center gap-2 px-4 py-2 text-sm">
+        <Link to="/products/new" className="btn-primary flex items-center gap-2 px-4 py-2 text-sm">
           <Plus className="h-4 w-4" /> Add product
-        </button>
+        </Link>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -342,7 +252,7 @@ export default function AdminProducts() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => openEdit(p)} className="text-gray-500 hover:text-lavender-700">
+                          <button type="button" onClick={() => navigate(`/products/${p.id}/edit`)} className="text-gray-500 hover:text-lavender-700" aria-label={`Edit ${p.name}`}>
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button type="button" onClick={() => handleDelete(p.id)} className="text-gray-500 hover:text-red-600">
@@ -359,153 +269,6 @@ export default function AdminProducts() {
         )}
       </div>
 
-      {modal && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-          <button type="button" className="absolute inset-0 bg-black/40" onClick={() => setModal(null)} aria-label="Close" />
-          <div className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-4 shadow-elevated sm:p-6">
-            <h2 className="text-lg font-bold">{modal === 'create' ? 'Add product' : 'Edit product'}</h2>
-            <div className="mt-4 space-y-3">
-              {[
-                { key: 'name', label: 'Name', type: 'text' },
-                { key: 'brand', label: 'Brand', type: 'text' },
-                { key: 'description', label: 'Description', type: 'textarea' },
-              ].map(({ key, label, type }) => (
-                <div key={key}>
-                  <label className="text-xs font-medium text-gray-600">{label}</label>
-                  {type === 'textarea' ? (
-                    <textarea
-                      value={(form as Record<string, string>)[key] ?? ''}
-                      onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                      rows={3}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-lavender-400"
-                    />
-                  ) : (
-                    <input
-                      type={type}
-                      value={(form as Record<string, string>)[key] ?? ''}
-                      onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-lavender-400"
-                    />
-                  )}
-                </div>
-              ))}
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-medium text-gray-600">Price / MRP (₹)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={mrp || ''}
-                    onChange={(e) => setMrp(Number(e.target.value))}
-                    placeholder="e.g. 1999"
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-lavender-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-600">Discount (%)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={99}
-                    value={discountPercent || ''}
-                    onChange={(e) => setDiscountPercent(Math.min(99, Math.max(0, Number(e.target.value))))}
-                    placeholder="0"
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-lavender-400"
-                  />
-                </div>
-              </div>
-
-              {mrp > 0 && (
-                <div className="rounded-lg border border-lavender-100 bg-lavender-50 px-4 py-3">
-                  <p className="text-xs font-medium text-gray-600">Calculated sale price</p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">{formatPrice(salePrice)}</p>
-                  {discountPercent > 0 ? (
-                    <div className="mt-2 space-y-1 text-xs text-gray-600">
-                      <p>M.R.P.: <span className="line-through">{formatPrice(mrp)}</span></p>
-                      <p className="font-semibold text-red-600">
-                        {discountPercent}% off · Customer saves {formatPrice(mrp - salePrice)}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-xs text-gray-500">No discount applied</p>
-                  )}
-                </div>
-              )}
-
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-                <input
-                  type="checkbox"
-                  checked={Boolean(form.dealOfDay)}
-                  onChange={(e) => setForm({ ...form, dealOfDay: e.target.checked })}
-                  className="mt-0.5 h-4 w-4 accent-amber-500"
-                />
-                <span>
-                  <span className="flex items-center gap-1 text-sm font-medium text-gray-800">
-                    <Zap className="h-3.5 w-3.5 fill-amber-400 text-amber-500" /> Show in Deal of the day
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    Appears in the home page Deal of the day carousel while it&apos;s in stock. Set a discount (MRP
-                    above the sale price) so shoppers see the savings.
-                  </span>
-                </span>
-              </label>
-
-              <div>
-                <label className="text-xs font-medium text-gray-600">Stock quantity</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.stockQuantity ?? 0}
-                  onChange={(e) => setForm({
-                    ...form,
-                    stockQuantity: Number(e.target.value),
-                    inStock: Number(e.target.value) > 0,
-                  })}
-                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-lavender-400"
-                />
-                <p className="mt-1 text-xs text-gray-400">
-                  {(form.stockQuantity ?? 0) > 0
-                    ? `${form.stockQuantity} units available for sale`
-                    : 'Product will be marked out of stock'}
-                </p>
-              </div>
-
-              <ImageUrlField
-                label="Main image"
-                value={form.image ?? ''}
-                onChange={(image) => setForm({ ...form, image })}
-              />
-              {galleryLoading ? (
-                <p className="text-xs text-gray-400">Loading preview images…</p>
-              ) : (
-                <GalleryImagesField
-                  images={form.images ?? []}
-                  onChange={(images) => setForm((prev) => ({ ...prev, images }))}
-                  onMakeMain={makeGalleryImageMain}
-                />
-              )}
-              <div>
-                <label className="text-xs font-medium text-gray-600">Category</label>
-                <select
-                  value={form.category ?? ''}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none"
-                >
-                  <option value="">Select category</option>
-                  {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="mt-6 flex gap-3">
-              <button type="button" onClick={handleSave} disabled={saving} className="btn-primary flex-1 py-2.5 text-sm">
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-              <button type="button" onClick={() => setModal(null)} className="btn-secondary flex-1 py-2.5 text-sm">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
