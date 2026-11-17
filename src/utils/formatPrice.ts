@@ -1,6 +1,3 @@
-export const FREE_DELIVERY_MIN = 999;
-export const SHIPPING_FEE = 99;
-
 export function formatPrice(amountInr: number) {
   return `₹${Math.round(amountInr).toLocaleString('en-IN')}`;
 }
@@ -10,16 +7,9 @@ export function formatPriceParts(amountInr: number) {
   return { whole: value, symbol: '₹' };
 }
 
-export function formatDeliveryThreshold() {
-  return `₹${FREE_DELIVERY_MIN.toLocaleString('en-IN')}`;
-}
-
-export function isFreeDelivery(subtotalInr: number) {
-  return subtotalInr >= FREE_DELIVERY_MIN;
-}
-
-export function getShipping(subtotalInr: number) {
-  return isFreeDelivery(subtotalInr) ? 0 : SHIPPING_FEE;
+/** Delivery is free on all orders. */
+export function getShipping(_subtotalInr: number) {
+  return 0;
 }
 
 export function getOrderTotalInr(subtotalInr: number) {
