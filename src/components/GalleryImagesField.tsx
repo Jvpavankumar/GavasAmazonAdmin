@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, ImagePlus, Link2, Star, X } from 'lucide-react';
 import { compressImage } from '../utils/compressImage';
+import { uploadImage } from '../api/admin';
 
 export const MAX_GALLERY_IMAGES = 8;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -36,10 +37,10 @@ export default function GalleryImagesField({ images, onChange, onMakeMain }: Gal
 
     setBusy(true);
     try {
-      const encoded = await Promise.all(toAdd.map(compressImage));
-      onChange([...images, ...encoded]);
+      const urls = await Promise.all(toAdd.map(async (f) => uploadImage(await compressImage(f), 'products')));
+      onChange([...images, ...urls]);
     } catch {
-      setError('Could not read one of the images.');
+      setError('Could not upload one of the images. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -139,7 +140,7 @@ export default function GalleryImagesField({ images, onChange, onMakeMain }: Gal
             className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 text-xs text-gray-500 transition hover:border-lavender-300 hover:text-lavender-700 disabled:opacity-60"
           >
             <ImagePlus className="h-5 w-5" />
-            {busy ? 'Processing…' : 'Add photos'}
+            {busy ? 'Uploading…' : 'Add photos'}
           </button>
         )}
       </div>

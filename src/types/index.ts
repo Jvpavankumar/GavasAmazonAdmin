@@ -17,6 +17,8 @@ export interface Product {
   badge?: string;
   /** Shown in the storefront's "Deal of the day" carousel. */
   dealOfDay?: boolean;
+  /** false = hidden from the storefront. */
+  isActive?: boolean;
 }
 
 export interface CartItem {

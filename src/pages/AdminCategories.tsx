@@ -87,6 +87,7 @@ export default function AdminCategories() {
           </div>
           <ImageUrlField
             label="Category logo"
+            folder="categories"
             value={image}
             onChange={setImage}
             placeholder="Paste logo URL or upload PNG/JPG"

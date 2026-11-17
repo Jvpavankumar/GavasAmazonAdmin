@@ -99,7 +99,7 @@ export function fetchAdminProducts(params?: { q?: string; category?: string; sto
 
 /** Full product including its gallery images (the admin list omits them to stay small). */
 export function fetchProductDetail(id: string) {
-  return api<Product>(`/products/${encodeURIComponent(id)}`);
+  return api<Product>(`/admin/products/${encodeURIComponent(id)}`);
 }
 
 export function createProduct(data: Partial<Product>) {
@@ -170,4 +170,13 @@ export function updateCategory(id: string, data: { name?: string; image?: string
 
 export function deleteCategory(id: string) {
   return api<{ deleted: boolean }>(`/admin/categories/${id}`, { method: 'DELETE' });
+}
+
+/** Uploads a base64 image to Cloud Storage and returns its public URL. */
+export async function uploadImage(dataUrl: string, folder: 'products' | 'categories' = 'products') {
+  const { url } = await api<{ url: string }>('/admin/uploads', {
+    method: 'POST',
+    body: JSON.stringify({ dataUrl, folder }),
+  });
+  return url;
 }

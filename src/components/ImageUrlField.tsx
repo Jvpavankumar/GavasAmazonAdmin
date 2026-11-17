@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react';
 import { Upload, ZoomIn, X } from 'lucide-react';
 
-const MAX_FILE_SIZE = 2 * 1024 * 1024;
+import { compressImage } from '../utils/compressImage';
+import { uploadImage } from '../api/admin';
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 interface ImageUrlFieldProps {
@@ -9,15 +12,8 @@ interface ImageUrlFieldProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
+  /** Bucket folder the uploaded file goes into. */
+  folder?: 'products' | 'categories';
 }
 
 export default function ImageUrlField({
@@ -25,7 +21,9 @@ export default function ImageUrlField({
   value,
   onChange,
   placeholder = 'https://example.com/image.jpg',
+  folder = 'products',
 }: ImageUrlFieldProps) {
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -41,17 +39,19 @@ export default function ImageUrlField({
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      alert('Image must be 2 MB or smaller.');
+      alert('Image must be 10 MB or smaller.');
       e.target.value = '';
       return;
     }
 
+    setUploading(true);
     try {
       setLoadError(false);
-      onChange(await fileToBase64(file));
+      onChange(await uploadImage(await compressImage(file), folder));
     } catch {
-      alert('Failed to read image file.');
+      alert('Could not upload the image. Please try again.');
     } finally {
+      setUploading(false);
       e.target.value = '';
     }
   };
@@ -73,10 +73,11 @@ export default function ImageUrlField({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="btn-secondary flex items-center gap-2 px-3 py-1.5 text-xs"
+          disabled={uploading}
+          className="btn-secondary flex items-center gap-2 px-3 py-1.5 text-xs disabled:opacity-60"
         >
           <Upload className="h-3.5 w-3.5" />
-          Upload image
+          {uploading ? 'Uploading…' : 'Upload image'}
         </button>
         {value.startsWith('data:') && (
           <span className="text-xs text-emerald-600">Uploaded (base64)</span>

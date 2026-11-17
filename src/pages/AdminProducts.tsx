@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Search, Package, AlertTriangle, CheckCircle, Zap } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, AlertTriangle, CheckCircle, Zap, Eye, EyeOff } from 'lucide-react';
 import type { Product } from '../types';
 import { fetchAdminProducts, updateProduct, deleteProduct } from '../api/admin';
 import { formatPrice, getDiscountPercent } from '../utils/formatPrice';
@@ -9,12 +9,13 @@ import AdminImageThumb from '../components/AdminImageThumb';
 
 export default function AdminProducts() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const stockFilter = (searchParams.get('stock') as 'in' | 'out' | 'low' | 'deal' | null) ?? 'all';
+  const stockFilter = (searchParams.get('stock') as 'in' | 'out' | 'low' | 'deal' | 'hidden' | null) ?? 'all';
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [togglingDeal, setTogglingDeal] = useState<string | null>(null);
+  const [togglingActive, setTogglingActive] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -44,7 +45,9 @@ export default function AdminProducts() {
             ? p.stockQuantity <= 0
             : stockFilter === 'deal'
               ? Boolean(p.dealOfDay)
-              : p.stockQuantity > 0 && p.stockQuantity <= 10;
+              : stockFilter === 'hidden'
+                ? p.isActive === false
+                : p.stockQuantity > 0 && p.stockQuantity <= 10;
     return matchesSearch && matchesStock;
   });
 
@@ -60,6 +63,21 @@ export default function AdminProducts() {
   const lowStockCount = products.filter((p) => p.stockQuantity > 0 && p.stockQuantity <= 10).length;
 
   const dealCount = products.filter((p) => p.dealOfDay).length;
+  const hiddenCount = products.filter((p) => p.isActive === false).length;
+
+  // Show/hide a product on the storefront without deleting it.
+  const toggleActive = async (p: Product) => {
+    const next = p.isActive === false;
+    setTogglingActive(p.id);
+    try {
+      const updated = await updateProduct(p.id, { isActive: next });
+      setProducts((list) => list.map((x) => (x.id === p.id ? { ...x, isActive: updated.isActive } : x)));
+    } catch {
+      alert('Could not update product visibility');
+    } finally {
+      setTogglingActive(null);
+    }
+  };
 
   // One-click on/off for the storefront's "Deal of the day" carousel.
   const toggleDeal = async (p: Product) => {
@@ -74,7 +92,7 @@ export default function AdminProducts() {
     }
   };
 
-  const setStockFilter = (value: 'all' | 'in' | 'out' | 'low' | 'deal') => {
+  const setStockFilter = (value: 'all' | 'in' | 'out' | 'low' | 'deal' | 'hidden') => {
     if (value === 'all') {
       searchParams.delete('stock');
       setSearchParams(searchParams);
@@ -89,6 +107,7 @@ export default function AdminProducts() {
     { id: 'out' as const, label: 'Out of stock', count: outOfStockCount },
     { id: 'low' as const, label: 'Low stock (≤10)', count: lowStockCount },
     { id: 'deal' as const, label: '⚡ Deal of the day', count: dealCount },
+    { id: 'hidden' as const, label: 'Hidden', count: hiddenCount },
   ];
 
   const stats = [
@@ -179,13 +198,14 @@ export default function AdminProducts() {
                   <th className="px-4 py-3">Discount</th>
                   <th className="px-4 py-3">Stock left</th>
                   <th className="px-4 py-3" title="Show in the storefront's Deal of the day carousel">Deal of day</th>
+                  <th className="px-4 py-3" title="Disable to hide this product from the storefront">Visible</th>
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sorted.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
+                    <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">
                       No products match this filter
                     </td>
                   </tr>
@@ -193,7 +213,7 @@ export default function AdminProducts() {
                 {sorted.map((p) => {
                   const discount = getDiscountPercent(p.price, p.originalPrice);
                   return (
-                    <tr key={p.id} className="hover:bg-gray-50">
+                    <tr key={p.id} className={`hover:bg-gray-50 ${p.isActive === false ? 'opacity-60' : ''}`}>
                       <td className="px-4 py-3">
                         {p.image ? (
                           <AdminImageThumb src={p.image} alt={p.name} />
@@ -204,7 +224,12 @@ export default function AdminProducts() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{p.name}</p>
+                        <p className="font-medium text-gray-900">
+                          {p.name}
+                          {p.isActive === false && (
+                            <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600">Hidden</span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-400">{p.id}</p>
                       </td>
                       <td className="px-4 py-3 text-gray-600">{p.category}</td>
@@ -249,6 +274,23 @@ export default function AdminProducts() {
                         {p.dealOfDay && p.stockQuantity <= 0 && (
                           <p className="mt-1 text-[11px] text-red-500">Hidden: out of stock</p>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleActive(p)}
+                          disabled={togglingActive === p.id}
+                          aria-pressed={p.isActive !== false}
+                          title={p.isActive === false ? 'Show on storefront' : 'Hide from storefront'}
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+                            p.isActive === false
+                              ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                              : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {p.isActive === false ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          {p.isActive === false ? 'Disabled' : 'Enabled'}
+                        </button>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">

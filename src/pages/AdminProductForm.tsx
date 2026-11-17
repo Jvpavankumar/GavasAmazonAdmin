@@ -10,7 +10,7 @@ import GalleryImagesField from '../components/GalleryImagesField';
 
 const emptyProduct = (): Partial<Product> => ({
   name: '', description: '', price: 0, originalPrice: undefined, category: '', brand: '',
-  rating: 4, reviewCount: 0, image: '', images: [], stockQuantity: 0, inStock: false, features: [], dealOfDay: false,
+  rating: 4, reviewCount: 0, image: '', images: [], stockQuantity: 0, inStock: false, features: [], dealOfDay: false, isActive: true,
 });
 
 const inputClass =
@@ -38,6 +38,8 @@ export default function AdminProductForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Key features edited as plain text, one bullet point per line.
+  const [featuresText, setFeaturesText] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +53,7 @@ export default function AdminProductForm() {
         setCategories(cats.map((c) => c.name));
         if (product) {
           setForm({ ...product, images: product.images ?? [] });
+          setFeaturesText((product.features ?? []).join('\n'));
           setMrp(product.originalPrice ?? product.price);
           setDiscountPercent(getDiscountPercent(product.price, product.originalPrice) ?? 0);
         }
@@ -92,6 +95,10 @@ export default function AdminProductForm() {
     try {
       const payload = {
         ...form,
+        features: featuresText
+          .split('\n')
+          .map((line) => line.replace(/^\s*[-•*]\s*/, '').trim())
+          .filter(Boolean),
         price: salePrice,
         originalPrice: discountPercent > 0 && mrp > salePrice ? mrp : null,
       };
@@ -159,6 +166,17 @@ export default function AdminProductForm() {
                 className={inputClass}
               />
             </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600">Key features (one per line)</label>
+              <textarea
+                value={featuresText}
+                onChange={(e) => setFeaturesText(e.target.value)}
+                rows={5}
+                placeholder={'100% cotton fabric\nMachine washable\n1 year warranty'}
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-gray-400">Each line shows as a bullet point under &quot;About this item&quot;.</p>
+            </div>
           </Section>
 
           <Section title="Price">
@@ -203,6 +221,24 @@ export default function AdminProductForm() {
                 )}
               </div>
             )}
+          </Section>
+
+          <Section title="Visibility">
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3">
+              <input
+                type="checkbox"
+                checked={form.isActive !== false}
+                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                className="mt-0.5 h-4 w-4 accent-emerald-600"
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-800">Show on storefront</span>
+                <span className="block text-xs text-gray-500">
+                  Untick to disable this product. Customers won&apos;t see it, search for it, or be able to buy it. You can
+                  turn it back on anytime.
+                </span>
+              </span>
+            </label>
           </Section>
 
           <Section title="Stock & promotion">
