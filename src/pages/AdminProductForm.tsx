@@ -172,7 +172,6 @@ export default function AdminProductForm() {
                 value={featuresText}
                 onChange={(e) => setFeaturesText(e.target.value)}
                 rows={5}
-                placeholder={'100% cotton fabric\nMachine washable\n1 year warranty'}
                 className={inputClass}
               />
               <p className="mt-1 text-xs text-gray-400">Each line shows as a bullet point under &quot;About this item&quot;.</p>
